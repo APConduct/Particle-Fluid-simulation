@@ -17,6 +17,7 @@ add_executable(particle_sim
     fluidsim/extern/imgui/imgui_draw.cpp
     fluidsim/extern/imgui/imgui_tables.cpp
     fluidsim/extern/imgui/imgui_widgets.cpp
+    fluidsim/extern/imgui/backends/imgui_impl_opengl3.cpp
 
     fluidsim/extern/implot/implot.cpp
     fluidsim/extern/implot/implot_demo.cpp
@@ -24,5 +25,6 @@ add_executable(particle_sim
 )
 
 target_link_libraries(particle_sim
-    SFML
+    glfw
+    GL
 )
