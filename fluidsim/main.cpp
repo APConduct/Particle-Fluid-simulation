@@ -1,4 +1,5 @@
 #include "imgui.h"
+#include "implot.h"
 #include <GLFW/glfw3.h>
 #include <Windows.h>
 #include "backends/imgui_impl_glfw.h"
@@ -7,11 +8,24 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+
 #define GL_SILENCE_DEPRECATION
 using namespace std;
 
 #define WIDTH 1280
 #define HEIGHT 720
+
+/* TODO: Clean this shit up*/
+#define TRACING_COLOR_MAP_UPDATE 0x0000ff
+#define TRACING_COLOR_RENDER 0x227733
+#define NUM_ELEM(array) (sizeof(array) / sizeof((array)[0]))
+static uint32_t rrggbb_to_aabbggrr(uint32_t u24_tracing_color) {
+    return
+        0xff << 24
+        | (u24_tracing_color & 0xff0000) >> 16
+        | (u24_tracing_color & 0xff00)
+        | (u24_tracing_color & 0xff) << 16;
+}
 
 GLFWwindow* window;
 
@@ -164,7 +178,7 @@ void particleCreation() {
     }
     startingX = 5;
     startingY -= 10;
-    for (int n = 0; n < 5000; n++) {
+    for (int n = 0; n < 2500; n++) {
         particles.push_back(Particle{ startingX, startingY, startingVX, startingVY, startingColorR, startingColorG, startingColorB});
         //startingX += 5;
         startingX += 5;
@@ -188,14 +202,14 @@ void changeColor() {
     }
 }
 
-void mousecallback(GLFWwindow* window, int button, int action, int mods) {
+/* void mousecallback(GLFWwindow* window, int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
         mb1pressed = true;
     }
     else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
         mb1pressed = false;
     }
-}
+} */
 
 void ImguiWindow() {
     ImGui_ImplOpenGL3_NewFrame();
@@ -208,11 +222,34 @@ void ImguiWindow() {
     ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
 
     ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-    //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+    //ImGui::Checkbox("Demo Window", &);      // Edit bools storing our window open/close state
     //ImGui::Checkbox("Another Window", &show_another_window);
 
     ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
     //ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+    auto size = ImVec2(ImGui::GetWindowSize().x - 20, 200 * 1.0);
+    if (ImPlot::BeginPlot("Timing", size, ImPlotFlags_NoInputs)) {
+        static const ImU32 color_map_data[] = {
+            rrggbb_to_aabbggrr(TRACING_COLOR_MAP_UPDATE),
+            rrggbb_to_aabbggrr(TRACING_COLOR_RENDER),
+        };
+        static ImPlotColormap timing_color_map = -1;
+        if (timing_color_map == -1) {
+            timing_color_map = ImPlot::AddColormap("CycleTimesUpdateTimeColorMap", color_map_data, NUM_ELEM(color_map_data));
+        }
+
+        ImPlot::PushColormap(timing_color_map);
+
+        ImPlot::SetupAxes("sample", "time (ms)");
+        //ImPlot::PlotLine("map_update", map_update_x, map_update_y, total_samples, 0, 0);
+        //ImPlot::PlotLine("render", render_x, render_y, total_samples, 0, 0);
+
+        ImPlot::PopColormap();
+
+        ImPlot::EndPlot();
+    }
+
 
     if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
         counter++;
@@ -276,6 +313,8 @@ int main() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
+    ImPlot::CreateContext();
+
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
@@ -292,7 +331,7 @@ int main() {
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    glfwSetMouseButtonCallback(window, mousecallback);
+    //glfwSetMouseButtonCallback(window, mousecallback);
 
     //particles.push_back(Particle{ 10, 710, 0, 0 });
     particleCreation();
@@ -313,20 +352,29 @@ int main() {
         
         // draw
         drawParticle();
+        
+        // poll for and process events
+        glfwPollEvents();
 
         // imgui window
         ImguiWindow();
 
+        ImPlot::ShowDemoWindow();
+
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         
-        // poll for and process events
-        glfwPollEvents();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         // buffer swap
         glfwSwapBuffers(window);
     }
 
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
 }

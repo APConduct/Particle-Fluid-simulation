@@ -70,6 +70,12 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -102,12 +108,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);IMGUI_IMPL_OPENGL_LOADER_GL3W</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\libs\imgui;C:\libs\glfw-3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\libs\imgui;C:\libs\glfw-3.4.bin.WIN64\include;C:\libs\implot-master\implot-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\libs\glfw-3.4.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\libs\glfw-3.4.bin.WIN64\lib-vc2022;C:\libs\implot-master\implot-master;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -119,12 +126,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);IMGUI_IMPL_OPENGL_LOADER_GL3W</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\libs\imgui;C:\libs\glfw-3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\libs\imgui;C:\libs\glfw-3.4.bin.WIN64\include;C:\libs\implot-master\implot-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\libs\glfw-3.4.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\libs\glfw-3.4.bin.WIN64\lib-vc2022;C:\libs\implot-master\implot-master;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -136,6 +144,9 @@
     <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot.cpp" />
+    <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot_demo.cpp" />
+    <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot_items.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -155,6 +166,8 @@
     <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot.h" />
+    <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot_internal.h" />
     <ClInclude Include="main.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

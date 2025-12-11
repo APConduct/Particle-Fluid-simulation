@@ -48,6 +48,15 @@
     <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\imgui\imgui_demo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot_items.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot_demo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\..\..\..\..\..\..\libs\glfw-3.4.bin.WIN64\lib-vc2022\glfw3.dll">
@@ -92,6 +101,12 @@
     </ClInclude>
     <ClInclude Include="main.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot_internal.h">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
