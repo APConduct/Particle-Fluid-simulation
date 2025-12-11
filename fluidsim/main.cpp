@@ -12,12 +12,13 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <io.h>
 
 #define GL_SILENCE_DEPRECATION
 using namespace std;
 
-#define WIDTH 1280
-#define HEIGHT 720
+#define WIDTH 1920
+#define HEIGHT 1080
 
 /* TODO: Clean this shit up*/
 #define TRACING_COLOR_MAP_UPDATE 0x0000ff
@@ -59,6 +60,9 @@ double ParticlemX, ParticlemY;
 float mouseFRadius = 200.0;
 
 bool resetSimButton;
+
+bool show_demo_window = false;
+bool show_implot_demo_window = false;
 
 class Particle {
 public:
@@ -159,8 +163,8 @@ void CollisionHandler(float dt) {
             a.y = 2;
             a.vy *= -0.5;
         }
-        else if (a.y > 720) {
-            a.y = 720;
+        else if (a.y > 1075) {
+            a.y = 1075;
             a.vy *= -0.5;
         }
 
@@ -223,10 +227,17 @@ void changeColor() {
     }
 } */
 
-void ImguiWindow() {
+void ImguiWindow(ImGuiIO& io = ImGui::GetIO()) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    if (show_demo_window) {
+        ImGui::ShowDemoWindow(&show_demo_window);
+    }
+    if (show_implot_demo_window) {
+        ImPlot::ShowDemoWindow();
+    }
 
     static float f = 0.0f;
     static int counter = 0;
@@ -234,12 +245,12 @@ void ImguiWindow() {
     ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
 
     ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-    //ImGui::Checkbox("Demo Window", &);      // Edit bools storing our window open/close state
+    // Edit bools storing our window open/close state
     //ImGui::Checkbox("Another Window", &show_another_window);
 
     ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
     //ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
+    /*
     auto size = ImVec2(ImGui::GetWindowSize().x - 20, 200 * 1.0);
     if (ImPlot::BeginPlot("Timing", size, ImPlotFlags_NoInputs)) {
         static const ImU32 color_map_data[] = {
@@ -261,15 +272,15 @@ void ImguiWindow() {
 
         ImPlot::EndPlot();
     }
+    */
 
-
-    if (ImGui::Button("reset")) {
-        resetSimButton = true;
-    }
+    if (ImGui::Button("reset")) { resetSimButton = true; };
+    ImGui::Checkbox("imgui demo window", &show_demo_window);
+    ImGui::Checkbox("implot demo window", &show_implot_demo_window);
     ImGui::SameLine();
     ImGui::Text("counter = %d", counter);
 
-    //ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
     ImGui::End();
 }
 
@@ -393,8 +404,6 @@ int main() {
 
         // imgui window
         ImguiWindow();
-
-        ImPlot::ShowDemoWindow();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
