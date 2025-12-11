@@ -31,6 +31,8 @@ static uint32_t rrggbb_to_aabbggrr(uint32_t u24_tracing_color) {
         | (u24_tracing_color & 0xff) << 16;
 }
 
+// test
+
 GLFWwindow* window;
 
 void reset();
