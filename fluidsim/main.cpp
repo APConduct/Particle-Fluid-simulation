@@ -29,6 +29,8 @@ static uint32_t rrggbb_to_aabbggrr(uint32_t u24_tracing_color) {
 
 GLFWwindow* window;
 
+void reset();
+
 float lastTime = glfwGetTime();
 float dt;
 float currentTime;
@@ -273,8 +275,13 @@ void reset() {
     startingColorR = 0.31;
     startingColorG = 0.62;
     startingColorB = 0.62;
+    
+    while (!particles.empty()) {
+        particles.pop_back();
+    }
 
-    for ()
+
+    particleCreation();
 }
 
 int main() {
