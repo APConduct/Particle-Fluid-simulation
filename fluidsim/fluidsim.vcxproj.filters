@@ -22,6 +22,9 @@
     <Filter Include="include\imgui">
       <UniqueIdentifier>{b78ab651-9d39-4521-ac7f-8e1f9290332d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\glad">
+      <UniqueIdentifier>{f04b7ab8-3296-4596-a2fb-81fe2bffabd2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -55,6 +58,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot_demo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\..\..\..\..\libs\glad\src\glad.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -107,6 +113,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\implot-master\implot-master\implot_internal.h">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\glad\include\KHR\khrplatform.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\..\..\..\..\libs\glad\include\glad\glad.h">
+      <Filter>include\glad</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

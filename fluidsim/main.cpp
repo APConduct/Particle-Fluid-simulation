@@ -2,17 +2,17 @@
 #include <Windows.h>
 #endif
 
-#include "imgui.h"
-#include "implot.h"
-#include <GLFW/glfw3.h>
-
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
-#include <stdio.h>
-#include <iostream>
-#include <vector>
+#include "imgui.h"
+#include "implot.h"
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <cmath>
 #include <deque>
+#include <iostream>
+#include <stdio.h>
+#include <vector>
 
 #define GL_SILENCE_DEPRECATION
 using namespace std;
@@ -25,11 +25,8 @@ using namespace std;
 #define TRACING_COLOR_RENDER 0x227733
 #define NUM_ELEM(array) (sizeof(array) / sizeof((array)[0]))
 static uint32_t rrggbb_to_aabbggrr(uint32_t u24_tracing_color) {
-    return
-        0xff << 24
-        | (u24_tracing_color & 0xff0000) >> 16
-        | (u24_tracing_color & 0xff00)
-        | (u24_tracing_color & 0xff) << 16;
+    return 0xff << 24 | (u24_tracing_color & 0xff0000) >> 16 |
+        (u24_tracing_color & 0xff00) | (u24_tracing_color & 0xff) << 16;
 }
 
 GLFWwindow* window;
@@ -42,7 +39,7 @@ float currentTime;
 
 float gravity = 0.0;
 float separationForce = 2000.0;
-float radius = 2.6f;
+float radius = 3.0f;
 
 float startingX = 5.0, startingY = 710.0;
 float startingVX = 0.0, startingVY = 0.0;
@@ -51,8 +48,15 @@ float startingColorR = 0.31;
 float startingColorG = 0.62;
 float startingColorB = 0.62;
 
+float dampeningFactor;
+
+// GLFWmousebuttonfun old_callback = nullptr;
+// GLFWmousebuttonfun new_callback = nullptr;
+
 bool mb1pressed;
 bool mb2pressed;
+
+// bool getmouse = false;
 
 double GLFWmX, GLFWmY;
 double ParticlemX, ParticlemY;
@@ -70,52 +74,148 @@ int maxFPSbufSamples = 300;
 
 static float col1[3] = { 1.0f, 0.0f, 0.2f };
 
+// OpenGL variables
+GLuint particleVAO;
+GLuint particleVBO;
+GLuint particleShaderProgram;
+
 class Particle {
 public:
-    float x, y;
-    float vx, vy;
-    float r, g, b;
+    float x, y;   // 8bytes
+    float vx, vy; // 8bytes
+    float nx, ny; // 8bytes
+    // 32bytes
+};
+class ParticleColor {
+public:
+    float r, g, b; // 12bytes
+    float a;       // ignored for now (padding)
 };
 
 std::vector<Particle> particles;
+std::vector<ParticleColor> particleColors;
 
-// Print GLFW errors to console
-static void glfw_error_callback(int error, const char* description)
-{
+static void glfw_error_callback(int error, const char* description) {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
+void setupDrawing() {
+    const char* vertexShaderSource = R"(
+        #version 330 core
+        layout (location = 0) in vec2 aPos;
+        void main() {
+            gl_Position = vec4(aPos, 0.0, 1.0);
+            gl_PointSize = 6.0;
+        }
+    )";
+
+    const char* fragmentShaderSource = R"(
+        #version 330 core
+        out vec4 FragColor;
+        uniform vec3 particleColor;
+        void main() {
+            FragColor = vec4(particleColor, 1.0);
+        }
+    )";
+
+    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glCompileShader(vertexShader);
+
+    GLint success;
+    GLchar infoLog[512];
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+        std::cout << "Vertex shader compilation failed:\n" << infoLog << std::endl;
+    }
+
+    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    glCompileShader(fragmentShader);
+
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+        std::cout << "Fragment shader compilation failed:\n" << infoLog << std::endl;
+    }
+
+    particleShaderProgram = glCreateProgram();
+    glAttachShader(particleShaderProgram, vertexShader);
+    glAttachShader(particleShaderProgram, fragmentShader);
+    glLinkProgram(particleShaderProgram);
+
+    glGetProgramiv(particleShaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(particleShaderProgram, 512, NULL, infoLog);
+        std::cout << "Shader program linking failed:\n" << infoLog << std::endl;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    glGenVertexArrays(1, &particleVAO);
+    glGenBuffers(1, &particleVBO);
+
+    glBindVertexArray(particleVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, particleVBO);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindVertexArray(0);
+
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
 
 void drawParticle() {
     glClearColor(0.08f, 0.08f, 0.08f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-    glPointSize(2.0f);
-    glBegin(GL_POINTS);
-    for (auto& p : particles) {
-        float nx = p.x / WIDTH * 2 - 1;
-        float ny = p.y / HEIGHT * 2 - 1;
-        
-        glVertex2f(nx, ny);
-        glColor3f(p.r, p.g, p.b);
-    }
-    glEnd();
 
+    glUseProgram(particleShaderProgram);
+
+    GLint colorLoc = glGetUniformLocation(particleShaderProgram, "particleColor");
+    glUniform3f(colorLoc, startingColorR, startingColorG, startingColorB);
+
+    std::vector<float> particlePositions;
+    particlePositions.reserve(particles.size() * 2);
+    for (const auto& p : particles) {
+        particlePositions.push_back(p.nx);
+        particlePositions.push_back(p.ny);
+    }
+
+    glBindVertexArray(particleVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, particleVBO);
+
+    glBufferData(GL_ARRAY_BUFFER,
+        particlePositions.size() * sizeof(float),
+        particlePositions.data(),
+        GL_DYNAMIC_DRAW);
+
+    glDrawArrays(GL_POINTS, 0, particles.size());
+
+    glBindVertexArray(0);
 }
 
 void updateParticle(float dt) {
-    for (auto& p : particles) {
-        p.vy -= gravity * dt;
-        p.y += p.vy * dt;
-        p.x += p.vx * dt;
-    }
-    
+
     glfwGetCursorPos(window, &GLFWmX, &GLFWmY);
 
     ParticlemX = GLFWmX;
     ParticlemY = HEIGHT - GLFWmY;
 
-    if (mb1pressed == true) {
-        for (auto& p : particles) {
+    for (int i = 0; i < particles.size(); i++) {
+        auto& p = particles[i];
+        p.vy -= gravity * dt;
+        p.y += p.vy * dt;
+        p.x += p.vx * dt;
+        p.nx = p.x / WIDTH * 2 - 1;
+        p.ny = p.y / HEIGHT * 2 - 1;
+
+        /*
+        if (mb1pressed == true) {
             float dx = p.x - ParticlemX;
             float dy = p.y - ParticlemY;
             auto distance = sqrt(((dx) * (dx)) + ((dy) * (dy)));
@@ -130,7 +230,7 @@ void updateParticle(float dt) {
                 p.g = 1;
                 p.b = 0.31;
             }
-        }
+        } */
     }
 
     if (resetSimButton) {
@@ -140,31 +240,34 @@ void updateParticle(float dt) {
 
 void CollisionHandler(float dt) {
     for (int i = 0; i < particles.size(); i++) {
-        for (int j = 0; j < i; j++) {
-            auto& a = particles[i];
+        auto& a = particles[i];
+        for (int j = 0; j < i; j++) { // O(5000 * 5000)
             auto& b = particles[j];
             float dx = a.x - b.x;
             float dy = a.y - b.y;
-            auto distance = sqrt(((dx) * (dx)) + ((dy) * (dy)));
-            
+            auto distance = sqrt(
+                ((dx) * (dx)) + ((dy) * (dy))); // at 60fps 750M distance checks / sec
+
             if (distance < radius * 2) {
-                //a.vx -= separationForce * dt;
-                //a.vy -= separationForce * dt;
-                //b.vx += separationForce * dt;
-                //b.vy += separationForce * dt;
+                // a.vx -= separationForce * dt;
+                // a.vy -= separationForce * dt;
+                // b.vx += separationForce * dt;
+                // b.vy += separationForce * dt;
 
                 a.vx += dx * separationForce * dt;
+                a.vx *= dampeningFactor;
                 a.vy += dy * separationForce * dt;
+                a.vy *= dampeningFactor;
                 b.vx -= dx * separationForce * dt;
+                b.vx *= dampeningFactor;
                 b.vy -= dy * separationForce * dt;
+                b.vy *= dampeningFactor;
+                // *= -dampeningFactor
             }
         }
-    }
-
-    for (auto& a : particles) {
-        // collisions with ground
-        if (a.y < 2) {
-            a.y = 2;
+        // bounce code here
+        if (a.y < 3) {
+            a.y = 3;
             a.vy *= -0.5;
         }
         else if (a.y > 1075) {
@@ -182,54 +285,55 @@ void CollisionHandler(float dt) {
             a.vx *= -0.6;
         }
 
+        if (a.y <= 3 && a.vy <= 0) {
+            a.vx *= dampeningFactor;
+        }
     }
 }
 
 void particleCreation() {
+    // TODO: look into .emplace_back
     for (int n = 0; n < particle_ammount; n++) {
-        particles.push_back(Particle{ startingX, startingY, VX, VY, startingColorR, startingColorG, startingColorB});
-        //startingX += 5;
+        particleColors.push_back(
+            ParticleColor{ startingColorR, startingColorG, startingColorB, 1.0 });
+        particles.push_back(Particle{ startingX, startingY, VX, VY });
+        // startingX += 5;
         startingX++;
         VX++;
         VY++;
     }
+
 }
 
 /* TODO: fix colors */
+
 void changeColor() {
-    for (auto& p : particles) {
+    for (int i = 0; i < particles.size(); i++) {
+        auto& p = particles[i];
+        auto& pc = particleColors[i];
+
         if (p.vx > 300.0 || p.vy > 300.0) {
-            p.r = col1[0];
-            p.g = col1[1];
-            p.b = col1[2];
+            pc.r = col1[0];
+            pc.g = col1[1];
+            pc.b = col1[2];
         }
         else if (p.vx > 300.0 && p.vy > 300.0) {
-            p.r = col1[0];
-            p.g = col1[1];
-            p.b = col1[2];
+            pc.r = col1[0];
+            pc.g = col1[1];
+            pc.b = col1[2];
         }
         else if (p.vx < 100.0 || p.vy < 100.0) {
-            p.r = startingColorR;
-            p.g = startingColorG;
-            p.b = startingColorB;
+            pc.r = startingColorR;
+            pc.g = startingColorG;
+            pc.b = startingColorB;
         }
     }
 }
-
-/* void mousecallback(GLFWwindow* window, int button, int action, int mods) {
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-        mb1pressed = true;
-    }
-    else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
-        mb1pressed = false;
-    }
-} */
 
 void ImguiWindow(ImGuiIO& io = ImGui::GetIO()) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
 
     if (show_demo_window) {
         ImGui::ShowDemoWindow(&show_demo_window);
@@ -238,22 +342,26 @@ void ImguiWindow(ImGuiIO& io = ImGui::GetIO()) {
         ImPlot::ShowDemoWindow();
     }
 
-    ImGui::Begin("Particle Simulator", NULL, ImGuiWindowFlags_NoBackground);                          // Create a window called "Hello, world!" and append into it.
+    ImGui::Begin("Particle Simulator", NULL,
+        ImGuiWindowFlags_NoBackground); // Create a window called "Hello,
+    // world!" and append into it.
 
-    // window settings and style
+// window settings and style
     ImGuiStyle& style = ImGui::GetStyle();
-    
+
     style.WindowRounding = 5.0f;
     style.FrameRounding = 5.0f;
 
     // Edit bools storing our window open/close state
-    //ImGui::Checkbox("Another Window", &show_another_window);
+    // ImGui::Checkbox("Another Window", &show_another_window);
     ImGui::Spacing();
     ImGui::SliderInt("Ammount of particles", &particle_ammount, 0, 5000);
     ImGui::Spacing();
     ImGui::SliderFloat("Gravity", &gravity, 0.0f, 5000.0f);
     ImGui::Spacing();
     ImGui::SliderFloat("Separation Force", &separationForce, 0.0, 5000.0f);
+    ImGui::Spacing();
+    ImGui::SliderFloat("Dampening Factor", &dampeningFactor, 0.0, 1.0f);
     ImGui::Spacing();
     ImGui::SliderFloat("Starting Velocity X", &startingVX, -1000.0, 1000.0f);
     ImGui::Spacing();
@@ -263,7 +371,7 @@ void ImguiWindow(ImGuiIO& io = ImGui::GetIO()) {
     ImGui::ColorEdit3("clear color", col1); // Edit 3 floats representing a color
     ImGui::Spacing();
     ImGui::Spacing();
-    //ImGui::SliderFloat("Starting Velocity Y", &separationForce, 0.0, 5000.0f);
+    // ImGui::SliderFloat("Starting Velocity Y", &separationForce, 0.0, 5000.0f);
     /*
     if (ImGui::Begin("fps")) {
         auto size = ImVec2(ImGui::GetWindowSize().x - 20, 200 * 1.0);
@@ -274,13 +382,16 @@ void ImguiWindow(ImGuiIO& io = ImGui::GetIO()) {
             };
             static ImPlotColormap timing_color_map = -1;
             if (timing_color_map == -1) {
-                timing_color_map = ImPlot::AddColormap("CycleTimesUpdateTimeColorMap", color_map_data, NUM_ELEM(color_map_data));
+                timing_color_map =
+    ImPlot::AddColormap("CycleTimesUpdateTimeColorMap", color_map_data,
+    NUM_ELEM(color_map_data));
             }
 
             ImPlot::PushColormap(timing_color_map);
 
             //ImPlot::SetupAxes("sample", "time (ms)");
-            //ImPlot::PlotLine("map_update", map_update_x, map_update_y, total_samples, 0, 0);
+            //ImPlot::PlotLine("map_update", map_update_x, map_update_y,
+    total_samples, 0, 0);
             //ImPlot::PlotLine("framerate", fpsBuf., fpsBuf.size());
 
             ImPlot::PopColormap();
@@ -289,9 +400,10 @@ void ImguiWindow(ImGuiIO& io = ImGui::GetIO()) {
         }
         ImGui::End();
     } */
-    
 
-    if (ImGui::Button("reset")) { resetSimButton = true; };
+    if (ImGui::Button("reset")) {
+        resetSimButton = true;
+    };
     ImGui::Spacing();
     ImGui::Spacing();
     ImGui::Checkbox("imgui demo window", &show_demo_window);
@@ -299,14 +411,22 @@ void ImguiWindow(ImGuiIO& io = ImGui::GetIO()) {
     ImGui::Checkbox("implot demo window", &show_implot_demo_window);
     ImGui::Spacing();
     ImGui::Spacing();
-    ImGui::TextLinkOpenURL("Github repo", "https://github.com/anAndjel/Particle-Fluid-simulation");
-    ImGui::Spacing();
-    ImGui::TextLinkOpenURL("Buy me a coffee!", "https://buymeacoffee.com/alexmtavares?new=1");
-    ImGui::Spacing();
-    ImGui::Spacing();
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+        1000.0f / io.Framerate, io.Framerate);
     ImGui::End();
 }
+/*
+void mousecallback(GLFWwindow* window, int button, int action, int mods) {
+    if (getmouse) return;
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+            mb1pressed = true;
+            std::cout << "yes" << '\n';
+    }
+    else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+            mb1pressed = false;
+    }
+
+}*/
 
 void reset() {
     lastTime = glfwGetTime();
@@ -319,14 +439,23 @@ void reset() {
     startingColorR = 0.31;
     startingColorG = 0.62;
     startingColorB = 0.62;
-    
+
     while (!particles.empty()) {
         particles.pop_back();
+        particleColors.pop_back();
     }
 
     particleCreation();
     resetSimButton = false;
 }
+/*
+void combinedMouseCallback(GLFWwindow* window, int button, int action, int mods)
+{ if (old_callback) { mousecallback(window, button, action, mods);
+    }
+    if (new_callback) {
+        IMGUIcallback(window, button, action, mods);
+    }
+}*/
 
 int main() {
 
@@ -334,6 +463,9 @@ int main() {
     if (!glfwInit()) {
         return -1;
     }
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     // create window and context
     window = glfwCreateWindow(WIDTH, HEIGHT, "particle sim", NULL, NULL);
@@ -343,55 +475,65 @@ int main() {
     }
 
     glfwMakeContextCurrent(window);
-    //glfwSwapInterval(1); // Disable vsync
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        MessageBoxA(nullptr, "GLAD failed", "Error", MB_OK);
+        return -1;
+    }
+
+    // Initialize OpenGL for particle drawing
+    setupDrawing();
+
+    //    glfwSetMouseButtonCallback(window, mousecallback);
+
+    // glfwSwapInterval(1); // Disable vsync
 
     // Decide GL+GLSL versions
 #if defined(IMGUI_IMPL_OPENGL_ES2)
-    // GL ES 2.0 + GLSL 100 (WebGL 1.0)
+  // GL ES 2.0 + GLSL 100 (WebGL 1.0)
     const char* glsl_version = "#version 100";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
 #elif defined(IMGUI_IMPL_OPENGL_ES3)
-    // GL ES 3.0 + GLSL 300 es (WebGL 2.0)
+  // GL ES 3.0 + GLSL 300 es (WebGL 2.0)
     const char* glsl_version = "#version 300 es";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
 #elif defined(__APPLE__)
-    // GL 3.2 + GLSL 150
+  // GL 3.2 + GLSL 150
     const char* glsl_version = "#version 150";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // 3.2+ only
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Required on Mac
 #else
-    // GL 3.0 + GLSL 130
+  // GL 3.0 + GLSL 130
     const char* glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+    // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+
+    // only glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // 3.0+ only
 #endif
 
-    float main_scale = 1.0;//ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
+    float main_scale =
+        1.0; // ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |=
+        ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+    io.ConfigFlags |=
+        ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
 
     ImPlot::CreateContext();
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
-
-     // Setup scaling
-    ImGuiStyle& style = ImGui::GetStyle();
-    //style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
-    //style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
+    // ImGui::StyleColorsLight();
 
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -399,10 +541,12 @@ int main() {
     ImGui_ImplGlfw_InstallEmscriptenCallbacks(window, "#canvas");
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
+    /*
+    IMGUIcallback = glfwSetMouseButtonCallback(window, NULL);
+    glfwSetMouseButtonCallback(window, mousecallback);
+    */
 
-    //glfwSetMouseButtonCallback(window, mousecallback);
-
-    //particles.push_back(Particle{ 10, 710, 0, 0 });
+    // Initial particle creation
     particleCreation();
 
     // main loop
@@ -417,21 +561,18 @@ int main() {
         CollisionHandler(dt);
 
         // change particle color based on speed
-        changeColor();
-        
+        // changeColor();
+
         // draw
         drawParticle();
-        
-        // poll for and process events
-        glfwPollEvents();
 
         // imgui window
         ImguiWindow();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        glfwPollEvents();
 
         // buffer swap
         glfwSwapBuffers(window);
